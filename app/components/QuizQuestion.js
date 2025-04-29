@@ -1,54 +1,70 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef } from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Audio } from 'expo-av';
 
-const QuizQuestion = ({ song, onAnswer }) => {
-  const [timeLeft, setTimeLeft] = useState(10);
-  const [canAnswer, setCanAnswer] = useState(true);
+export default function QuizQuestion({
+  song,
+  onAnswer,
+  duration = 10
+}) {
   const [selected, setSelected] = useState(null);
-  const soundRef = useRef(null);
+  const [canAnswer, setCanAnswer] = useState(true);
+  const [timeLeft, setTimeLeft] = useState(duration);
+
+  const intervalRef = useRef();
+  const timeoutRef = useRef();
+  const soundRef = useRef();
 
   useEffect(() => {
-    let interval;
-    let timeout;
+    setSelected(null);
+    setCanAnswer(true);
+    setTimeLeft(duration);
 
-    const playSong = async () => {
-      const { sound } = await Audio.Sound.createAsync(song.file);
-      soundRef.current = sound;
-      await sound.playAsync();
-    };
-    playSong();
+    (async () => {
+      if (song.audio) {
+        const { sound } = await Audio.Sound.createAsync(song.audio);
+        soundRef.current = sound;
+        await sound.playAsync();
+      }
+    })();
 
-    interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
-          clearInterval(interval);
+          clearInterval(intervalRef.current);
           return 0;
         }
         return t - 1;
       });
     }, 1000);
 
-    timeout = setTimeout(() => {
-      setCanAnswer(false);
-      setTimeLeft(0);
-      soundRef.current && soundRef.current.stopAsync();
-      onAnswer(null);
-    }, 10000);
+    timeoutRef.current = setTimeout(() => {
+      stopAll();
+      onAnswer && onAnswer(null);
+    }, duration * 1000);
 
     return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-      soundRef.current && soundRef.current.unloadAsync();
+      stopAll();
     };
-  }, []);
+  }, [song]);
 
-  const handleAnswer = (choice) => {
+  const stopAll = () => {
+    clearInterval(intervalRef.current);
+    clearTimeout(timeoutRef.current);
+    setCanAnswer(false);
+    if (soundRef.current) {
+      soundRef.current.stopAsync();
+      soundRef.current.unloadAsync();
+      soundRef.current = null;
+    }
+  };
+
+  const handleChoice = (choice) => {
     if (!canAnswer) return;
     setSelected(choice);
     setCanAnswer(false);
-    onAnswer(choice);
-    soundRef.current && soundRef.current.stopAsync();
+    stopAll();
+    if(onAnswer) onAnswer(choice);
   };
 
   const getButtonColor = (choice) => {
@@ -60,34 +76,52 @@ const QuizQuestion = ({ song, onAnswer }) => {
     return '#eee';
   };
 
+  const formatTime = (t) => t + "s";
+
   return (
-    <View>
-      <Text style={{ fontSize: 24, marginBottom: 12 }}>
-        Temps restant : {timeLeft}s
-      </Text>
-      {song.choices.map(choice => (
+    <View style={styles.container}>
+      <Text style={styles.timer}>⏳ {formatTime(timeLeft)}</Text>
+      <Text style={styles.question}>Choisis le titre :</Text>
+      {song.choices.map((choice, i) => (
         <TouchableOpacity
-          key={choice}
-          onPress={() => handleAnswer(choice)}
+          key={i}
+          style={[
+            styles.button,
+            { backgroundColor: getButtonColor(choice) }
+          ]}
+          onPress={() => handleChoice(choice)}
           disabled={!canAnswer}
-          style={{
-            backgroundColor: getButtonColor(choice),
-            margin: 8,
-            padding: 12,
-            borderRadius: 5,
-            borderWidth: 1,
-            borderColor: '#bbb'
-          }}>
-          <Text style={{ color: '#333', fontSize: 18 }}>{choice}</Text>
+        >
+          <Text
+            style={[
+              styles.buttonText,
+              !canAnswer && choice === song.title ? { color: "white", fontWeight: "bold" } : {},
+              !canAnswer && selected === choice && choice !== song.title ? { color: "white" } : {}
+            ]}
+          >
+            {choice}
+          </Text>
         </TouchableOpacity>
       ))}
-      {!canAnswer && (
-        <Text style={{ marginTop: 16 }}>
-          La bonne réponse était : <Text style={{ color: 'limegreen', fontWeight: 'bold' }}>{song.title}</Text>
-        </Text>
-      )}
     </View>
   );
-};
+}
 
-export default QuizQuestion;
+const styles = StyleSheet.create({
+  container: { padding: 20, alignItems: "center" },
+  timer: { fontSize: 30, marginVertical: 10 },
+  question: { fontSize: 22, marginVertical: 14, textAlign: "center" },
+  button: {
+    minWidth: 180,
+    borderRadius: 18,
+    marginVertical: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderWidth: .8,
+    borderColor: "#bbb"
+  },
+  buttonText: {
+    fontSize: 20,
+    textAlign: "center"
+  }
+});
