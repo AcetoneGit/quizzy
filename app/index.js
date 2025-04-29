@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { View, SafeAreaView, Button, Text, ScrollView } from "react-native";
+import { View, SafeAreaView, Button } from "react-native";
 import QuizQuestion from "./components/QuizQuestion";
+import QuizResults from "./components/QuizResults";
 
 const SONGS = [
   {
@@ -34,7 +35,6 @@ export default function App() {
 
   const handleAnswer = (choice, elapsed) => {
     setAnswered(true);
-
     let addedScore = 0;
     if (choice === SONGS[questionIdx].title) {
       if (elapsed <= 3)      addedScore = 25;
@@ -61,47 +61,33 @@ export default function App() {
     setShowReview(false);
   };
 
-  if (questionIdx === SONGS.length) {
-    if (showReview) {
-      return (
-        <SafeAreaView style={{ flex: 1 }}>
-          <ScrollView>
-            <Text style={{ fontSize: 24, textAlign: "center", margin: 16 }}>Review de tes réponses</Text>
-            {SONGS.map((q, i) => (
-              <View key={i} style={{ margin: 8, padding: 8, borderWidth: 1, borderColor: "#ccc" }}>
-                <Text style={{ fontWeight: "bold" }}>{`Q${i + 1}: ${q.title}`}</Text>
-                <Text>Ta réponse : <Text style={{ color: userAnswers[i].choice === q.title ? "green" : "red" }}>{userAnswers[i].choice}</Text></Text>
-                <Text>Points gagnés : <Text style={{ fontWeight: 'bold' }}>{userAnswers[i].points}</Text> ({userAnswers[i].elapsed.toFixed(1)}s)</Text>
-                {userAnswers[i].choice !== q.title && (
-                  <Text>Bonne réponse : <Text style={{ color: "green" }}>{q.title}</Text></Text>
-                )}
-              </View>
-            ))}
-            <View style={{ margin: 16 }}>
-              <Button title="Rejouer" onPress={handleRestart} />
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      );
-    }
-
+  if (questionIdx === SONGS.length && showReview) {
     return (
-      <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 32, fontWeight: "bold", margin: 24 }}>Quiz terminé !</Text>
-        <Text style={{ fontSize: 24, margin: 8 }}>
-          Score {" "}
-          <Text style={{ color: "green" }}>
-            {score} / 100
-          </Text>
-        </Text>
-        <Button title="Voir mes réponses" onPress={() => setShowReview(true)} />
-        <Button title="Rejouer" onPress={handleRestart} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F4FF" }}>
       </SafeAreaView>
     );
   }
 
+  if (questionIdx === SONGS.length) {
+    return (
+      <QuizResults
+        score={score}
+        total={SONGS.length * 25}
+        answers={userAnswers.map((ua, idx) => ({
+          picked: ua.choice,
+          points: ua.points,
+          max: 25,
+          time: ua.elapsed
+        }))}
+        questions={SONGS}
+        onRestart={handleRestart}
+        onReview={() => setShowReview(true)}
+      />
+    );
+  }
+
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F4FF" }}>
       <QuizQuestion
         key={questionIdx}
         song={SONGS[questionIdx]}
