@@ -1,7 +1,12 @@
 import React, { useState } from "react";
-import { View, SafeAreaView, Button } from "react-native";
+import {
+  View, SafeAreaView, Button, Text, Modal,
+  TouchableWithoutFeedback, Animated, TouchableOpacity
+} from "react-native";
 import QuizQuestion from "./components/QuizQuestion";
 import QuizResults from "./components/QuizResults";
+import StepBar from "./components/StepBar";
+import * as Haptics from "expo-haptics";
 
 const SONGS = [
   {
@@ -23,8 +28,93 @@ const SONGS = [
     title: "Âne",
     choices: ["1", "2", "3", "Âne"],
     audio: require("../assets/audio/donkey.wav"),
-  }
+  },
 ];
+
+function AnimatedButton({ onPress, style, children }) {
+  const anim = React.useRef(new Animated.Value(1)).current;
+  return (
+    <TouchableWithoutFeedback
+      onPressIn={() => Animated.spring(anim, { toValue: 0.92, useNativeDriver: true }).start()}
+      onPressOut={() => Animated.spring(anim, { toValue: 1, useNativeDriver: true }).start()}
+      onPress={onPress}
+    >
+      <Animated.View style={[{ transform: [{ scale: anim }] }, style]}>
+        {children}
+      </Animated.View>
+    </TouchableWithoutFeedback>
+  );
+}
+
+function RulesScreen({ onBack }) {
+  return (
+    <SafeAreaView style={{
+      flex: 1, backgroundColor: "rgba(241,244,255,0.96)",
+      justifyContent: "center", alignItems: "center", padding: 25
+    }}>
+      <View style={{
+        backgroundColor: "#fff", borderRadius: 15, padding: 25, alignItems: "center", width: "94%"
+      }}>
+        <Text style={{ fontSize: 24, color: "#0057FF", fontWeight: "bold", marginBottom: 12 }}>
+          Règles du jeu
+        </Text>
+        <Text style={{ fontSize: 16, color: "#232C4E", marginBottom: 17 }}>
+          1. Écoute l'extrait musical proposé{"\n"}
+          2. Sélectionne la bonne réponse{"\n"}
+          3. Tu as 10 secondes par question{"\n"}
+          4. Gagne un max de points selon ta rapidité !{"\n"}
+        </Text>
+        <AnimatedButton
+          onPress={onBack}
+          style={{
+            backgroundColor: "#0057FF",
+            borderRadius: 8,
+            paddingVertical: 10, paddingHorizontal: 28,
+            marginTop: 8
+          }}>
+          <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>Retour</Text>
+        </AnimatedButton>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function StartMenu({ visible, onStart, onShowRules }) {
+  return (
+    <Modal visible={visible} animationType="fade" transparent>
+      <View style={{
+        flex: 1, backgroundColor: "rgba(28,38,70,0.97)",
+        justifyContent: "center", alignItems: "center"
+      }}>
+        <Text style={{
+          color: "#fff", fontSize: 32, marginBottom: 44, fontWeight: "bold"
+        }}>🎶 QUIZZY</Text>
+        <AnimatedButton
+          onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            onStart();
+          }}
+          style={{
+            backgroundColor: "#0057FF", borderRadius: 18, paddingVertical: 18, paddingHorizontal: 65,
+            marginVertical: 10, elevation: 5, shadowColor: "#0057FF", shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 5 }
+          }}>
+          <Text style={{ color: "#fff", fontSize: 22, fontWeight: "bold", letterSpacing: 1.4 }}>Lancer le Quiz</Text>
+        </AnimatedButton>
+        <AnimatedButton
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            onShowRules();
+          }}
+          style={{
+            backgroundColor: "#F1F4FF", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 30,
+            marginTop: 13, elevation: 2, shadowColor: "#0057FF", shadowOpacity: 0.11, shadowRadius: 5, shadowOffset: { width: 0, height: 3 }
+          }}>
+          <Text style={{ color: "#0057FF", fontSize: 15, fontWeight: "bold" }}>Règles du jeu</Text>
+        </AnimatedButton>
+      </View>
+    </Modal>
+  );
+}
 
 export default function App() {
   const [questionIdx, setQuestionIdx] = useState(0);
@@ -32,6 +122,8 @@ export default function App() {
   const [score, setScore] = useState(0);
   const [userAnswers, setUserAnswers] = useState([]);
   const [showReview, setShowReview] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(true);
+  const [rulesScreen, setRulesScreen] = useState(false);
 
   const handleAnswer = (choice, elapsed) => {
     setAnswered(true);
@@ -59,11 +151,26 @@ export default function App() {
     setScore(0);
     setUserAnswers([]);
     setShowReview(false);
+    setMenuVisible(true);
   };
+
+  if (menuVisible) {
+    if (rulesScreen) {
+      return <RulesScreen onBack={() => setRulesScreen(false)} />;
+    }
+    return (
+      <StartMenu
+        visible={menuVisible}
+        onStart={() => setMenuVisible(false)}
+        onShowRules={() => setRulesScreen(true)}
+      />
+    );
+  }
 
   if (questionIdx === SONGS.length && showReview) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F4FF" }}>
+        <Button title="Retour menu" onPress={handleRestart} />
       </SafeAreaView>
     );
   }
@@ -88,6 +195,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F4FF" }}>
+      <StepBar current={questionIdx} total={SONGS.length} />
       <QuizQuestion
         key={questionIdx}
         song={SONGS[questionIdx]}
@@ -103,11 +211,14 @@ export default function App() {
                 ? "Question suivante"
                 : "Voir résultat"
             }
-            onPress={
-              questionIdx + 1 < SONGS.length
-                ? handleNext
-                : () => setQuestionIdx(questionIdx + 1)
-            }
+            onPress={async () => {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              if (questionIdx + 1 < SONGS.length) {
+                handleNext();
+              } else {
+                setQuestionIdx(questionIdx + 1);
+              }
+            }}
           />
         </View>
       )}

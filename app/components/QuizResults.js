@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Audio } from "expo-av";
 import { MaterialIcons } from '@expo/vector-icons';
+import ConfettiCannon from 'react-native-confetti-cannon';
+import * as Haptics from 'expo-haptics';
 
 const COLORS = {
   accent: "#0057FF",
@@ -16,21 +18,27 @@ const failSound = require("../../assets/audio/fail.mp3");
 
 const QuizResults = ({ score, total, answers, questions, onRestart, onReview }) => {
   const [displayedScore, setDisplayedScore] = useState(0);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
     let current = 0;
-    const increment = Math.max(1, Math.round((score) / 40));
+    const increment = Math.max(1, Math.round((score) / 40)) || 1;
     const timer = setInterval(() => {
       current += increment;
       if (current >= score) {
         setDisplayedScore(score);
         clearInterval(timer);
+
+        if (score / total >= 0.7) {
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 5000);
+        }
       } else {
         setDisplayedScore(current);
       }
     }, 16);
     return () => clearInterval(timer);
-  }, [score]);
+  }, [score, total]);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,6 +69,17 @@ const QuizResults = ({ score, total, answers, questions, onRestart, onReview }) 
       backgroundColor: COLORS.bg,
       padding: 0,
     }}>
+      {}
+      {showConfetti && (
+        <ConfettiCannon
+          count={120}
+          origin={{x: 200, y: -40}}
+          fadeOut
+          explosionSpeed={350}
+          fallSpeed={2700}
+        />
+      )}
+
       <ScrollView contentContainerStyle={{
         alignItems: "center",
         justifyContent: "flex-start",
@@ -93,6 +112,7 @@ const QuizResults = ({ score, total, answers, questions, onRestart, onReview }) 
             Score&nbsp;
             {displayedScore} / {total}
           </Text>
+          <ProgressBar value={displayedScore} total={total} />
           <Text style={{
             fontSize: 18,
             color: "#5D6A88",
@@ -107,7 +127,10 @@ const QuizResults = ({ score, total, answers, questions, onRestart, onReview }) 
               : "Essaie encore ! 🚀"}
           </Text>
           <TouchableOpacity
-            onPress={onRestart}
+  onPress={async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onRestart();
+  }}
             style={{
               marginTop: 6,
               paddingVertical: 12,
@@ -121,8 +144,7 @@ const QuizResults = ({ score, total, answers, questions, onRestart, onReview }) 
             <Text style={{ color: "white", fontWeight: "bold", fontSize: 18 }}>Rejouer</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Récapitulatif question par question */}
+        {}
         <View style={{
           width: "95%",
           maxWidth: 460,
@@ -166,5 +188,41 @@ const QuizResults = ({ score, total, answers, questions, onRestart, onReview }) 
     </View>
   );
 };
+
+const ProgressBar = ({ value, total }) => (
+  <View style={{
+    height: 18,
+    backgroundColor: "#E8EAFC",
+    borderRadius: 9,
+    overflow: "hidden",
+    width: "88%",
+    alignSelf: "center",
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: "#DAE3F5",
+  }}>
+    <View style={{
+      height: "100%",
+      width: `${Math.round((value / total) * 100)}%`,
+      backgroundColor: value / total >= 0.7
+        ? "#52E580"
+        : value / total >= 0.5
+        ? "#FEC400"
+        : "#FF5757",
+      borderRadius: 9,
+      justifyContent: "center",
+      alignItems: "flex-end",
+    }}>
+      <Text style={{
+        color: "#fff",
+        fontWeight: "bold",
+        fontSize: 13,
+        paddingRight: 10,
+      }}>
+        {Math.round((value / total) * 100)}%
+      </Text>
+    </View>
+  </View>
+);
 
 export default QuizResults;

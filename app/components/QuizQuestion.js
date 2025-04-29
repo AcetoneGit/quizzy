@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Animated } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, Animated, TouchableWithoutFeedback } from "react-native";
 import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 
 const COLORS = {
   bg: "#F1F4FF",
@@ -11,6 +12,41 @@ const COLORS = {
   neutral: "#FFFFFF",
   shadow: "#D7DBEE"
 };
+
+function AnimatedButton({ onPress, disabled, style, children }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, {
+      toValue: 0.94,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 0,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 35,
+      bounciness: 5,
+    }).start();
+  };
+
+  return (
+    <TouchableWithoutFeedback
+      disabled={disabled}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={onPress}
+    >
+      <Animated.View style={[{ transform: [{ scale }] }, style]}>
+        {children}
+      </Animated.View>
+    </TouchableWithoutFeedback>
+  );
+}
 
 const QuizQuestion = ({ song, duration, onAnswer, disabled }) => {
   const [timeLeft, setTimeLeft] = useState(duration);
@@ -133,7 +169,7 @@ const QuizQuestion = ({ song, duration, onAnswer, disabled }) => {
         textAlign: "center",
         letterSpacing: 0.5,
       }}>
-        Quel est ce morceau ?
+        Quel est ce son ?
       </Text>
       {/* Timer */}
       <View style={{
@@ -159,11 +195,13 @@ const QuizQuestion = ({ song, duration, onAnswer, disabled }) => {
         </Text>
       </View>
       {song.choices.map((choice) => (
-        <TouchableOpacity
+        <AnimatedButton
           key={choice}
-          onPress={async () => await handleChoice(choice)}
+          onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            await handleChoice(choice);
+          }}
           disabled={disabled || selected !== null}
-          activeOpacity={0.82}
           style={{
             backgroundColor: COLORS.neutral,
             alignItems: 'center',
@@ -181,7 +219,6 @@ const QuizQuestion = ({ song, duration, onAnswer, disabled }) => {
             borderColor: "#D7DBEE",
             opacity: !!selected && (selected !== choice && (choice !== song.title)) ? 0.46 : 1,
             ...getButtonStyle(choice),
-            transitionDuration: "300ms",
           }}
         >
           <Text style={{
@@ -192,9 +229,8 @@ const QuizQuestion = ({ song, duration, onAnswer, disabled }) => {
               : "#232C4E",
             letterSpacing: 0.2,
           }}>{choice}</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       ))}
-      {}
       <View style={{ minHeight: 40, marginTop: 8 }}>
       {showFeedback && selected && (
         <Text style={{
